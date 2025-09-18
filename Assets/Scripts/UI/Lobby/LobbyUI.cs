@@ -20,7 +20,10 @@ namespace Poker.UI.Lobby
         
         [Header("Room Creation")]
         [SerializeField] private GameObject createRoomPanel;
-        [SerializeField] private Button createRoomConfirmBtn;
+        [SerializeField] private TMP_InputField roomNameInput;
+        [SerializeField] private Toggle privateToggle;
+        [SerializeField] private TMP_InputField roomPasswordInput;
+        [SerializeField] private Button createRoomCreateBtn;
         [SerializeField] private Button createRoomCancelBtn;
         
         [Header("Room Joining")]
@@ -61,17 +64,19 @@ namespace Poker.UI.Lobby
             if (exitBtn != null) exitBtn.onClick.AddListener(OnExitClicked);
             
             // 방 생성 패널 버튼
-            if (createRoomConfirmBtn != null) createRoomConfirmBtn.onClick.AddListener(OnCreateRoomConfirmClicked);
+            if (createRoomCreateBtn != null) createRoomCreateBtn.onClick.AddListener(OnCreateRoomConfirmClicked);
             if (createRoomCancelBtn != null) createRoomCancelBtn.onClick.AddListener(OnCreateRoomCancelClicked);
+            if (privateToggle != null) privateToggle.onValueChanged.AddListener(OnPrivateToggleChanged);
             
             // 방 참여 패널 버튼
             if (joinRoomConfirmBtn != null) joinRoomConfirmBtn.onClick.AddListener(OnJoinRoomConfirmClicked);
             if (joinRoomCancelBtn != null) joinRoomCancelBtn.onClick.AddListener(OnJoinRoomCancelClicked);
             
             // 패널 초기화
-            if (createRoomPanel != null) createRoomPanel.SetActive(false);
-            if (joinRoomPanel != null) joinRoomPanel.SetActive(false);
+            HideAllPanels();
             if (loadingPanel != null) loadingPanel.SetActive(false);
+            // 비공개 토글 UI 초기화
+            ApplyPrivateToggleUI();
             
             // 플레이어 정보 업데이트
             UpdatePlayerInfo();
@@ -112,7 +117,9 @@ namespace Poker.UI.Lobby
         private void OnCreateRoomClicked()
         {
             Debug.Log("방 생성 버튼 클릭");
-            LobbyManager.Instance.ShowCreateRoomPanel();
+            HideAllPanels();
+            if (createRoomPanel != null) createRoomPanel.SetActive(true);
+            ApplyPrivateToggleUI();
         }
         
         /// <summary>
@@ -121,7 +128,8 @@ namespace Poker.UI.Lobby
         private void OnJoinRoomClicked()
         {
             Debug.Log("방 참여 버튼 클릭");
-            LobbyManager.Instance.ShowJoinRoomPanel();
+            HideAllPanels();
+            if (joinRoomPanel != null) joinRoomPanel.SetActive(true);
         }
         
         /// <summary>
@@ -130,7 +138,7 @@ namespace Poker.UI.Lobby
         private void OnRoomListClicked()
         {
             Debug.Log("방 목록 버튼 클릭");
-            LobbyManager.Instance.ShowRoomList();
+            UpdateStatusText("방 목록은 추후 제공됩니다.");
         }
         
         /// <summary>
@@ -159,7 +167,14 @@ namespace Poker.UI.Lobby
         {
             Debug.Log("방 생성 확인 버튼 클릭");
             ShowLoading("방 생성 중...");
-            LobbyManager.Instance.CreateRoomAsync();
+            // TODO: 패스워드는 네트워크 계층으로 전달하여 검증/저장 예정
+            string roomName = roomNameInput != null ? roomNameInput.text : string.Empty;
+            bool isPrivate = privateToggle != null && privateToggle.isOn;
+            string password = (isPrivate && roomPasswordInput != null)
+                ? roomPasswordInput.text
+                : string.Empty;
+            // 현재는 UI 단계까지만 처리. 필요 시 LobbyManager에 전달하도록 확장
+            LobbyManager.Instance.CreateRoomAsync(roomName, isPrivate, password);
         }
         
         /// <summary>
@@ -168,7 +183,7 @@ namespace Poker.UI.Lobby
         private void OnCreateRoomCancelClicked()
         {
             Debug.Log("방 생성 취소 버튼 클릭");
-            if (createRoomPanel != null) createRoomPanel.SetActive(false);
+            HideAllPanels();
         }
         
         /// <summary>
@@ -195,7 +210,7 @@ namespace Poker.UI.Lobby
         private void OnJoinRoomCancelClicked()
         {
             Debug.Log("방 참여 취소 버튼 클릭");
-            if (joinRoomPanel != null) joinRoomPanel.SetActive(false);
+            HideAllPanels();
         }
         
         /// <summary>
@@ -240,6 +255,42 @@ namespace Poker.UI.Lobby
         private void HideLoading()
         {
             if (loadingPanel != null) loadingPanel.SetActive(false);
+        }
+
+        /// <summary>
+        /// 모든 패널 숨김 처리
+        /// </summary>
+        private void HideAllPanels()
+        {
+            if (createRoomPanel != null) createRoomPanel.SetActive(false);
+            if (joinRoomPanel != null) joinRoomPanel.SetActive(false);
+        }
+
+        /// <summary>
+        /// 비공개 방 토글 변경 시 UI 적용
+        /// </summary>
+        private void OnPrivateToggleChanged(bool isOn)
+        {
+            ApplyPrivateToggleUI();
+        }
+
+        /// <summary>
+        /// 비공개 토글 상태에 따라 패스워드 입력 활성/비활성
+        /// </summary>
+        private void ApplyPrivateToggleUI()
+        {
+            bool enable = privateToggle != null && privateToggle.isOn;
+            if (roomPasswordInput != null)
+            {
+                roomPasswordInput.gameObject.SetActive(enable);
+                roomPasswordInput.interactable = enable;
+                // 시각적으로 패스워드 입력처럼 보이도록 설정 (선택 사항)
+                roomPasswordInput.contentType = enable ? TMP_InputField.ContentType.Password : TMP_InputField.ContentType.Standard;
+                if (!enable)
+                {
+                    roomPasswordInput.text = string.Empty;
+                }
+            }
         }
         
         /// <summary>

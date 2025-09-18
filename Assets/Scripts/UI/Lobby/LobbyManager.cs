@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using Unity.Services.Core;
 using UnityEngine.SceneManagement;
 using Core;
 using Network;
@@ -16,11 +17,6 @@ namespace Poker.UI.Lobby
         [SerializeField] private bool enableDebugLogs = true;
         [SerializeField] private string gameSceneName = "Game";
         
-        [Header("UI References")]
-        [SerializeField] private GameObject createRoomPanel;
-        [SerializeField] private GameObject joinRoomPanel;
-        [SerializeField] private GameObject roomListPanel;
-        [SerializeField] private GameObject quickMatchPanel;
         
         // 이벤트
         public static event Action OnLobbyInitialized;
@@ -42,8 +38,23 @@ namespace Poker.UI.Lobby
             NetworkManager.OnClientConnected += OnClientConnected;
             NetworkManager.OnConnectionFailed += OnConnectionFailed;
             AuthenticationManager.OnAuthenticationSuccess += OnAuthenticationSuccess;
+            UgsInitializer.OnInitComplete += OnUgsInitComplete;
             
             LogDebug("LobbyManager 초기화 완료");
+        }
+
+        protected override void OnEnable()
+        {
+            base.OnEnable();
+            // UGS 초기화가 끝난 이후에만 인증 상태를 확인해 로비 초기화 시도
+            if (!IsLobbyReady && UnityServices.State == ServicesInitializationState.Initialized)
+            {
+                if (AuthenticationManager.Instance != null &&
+                    AuthenticationManager.Instance.CheckAuthenticationStatus())
+                {
+                    InitLobby();
+                }
+            }
         }
         
         protected override void OnDestroy()
@@ -55,6 +66,7 @@ namespace Poker.UI.Lobby
             NetworkManager.OnClientConnected -= OnClientConnected;
             NetworkManager.OnConnectionFailed -= OnConnectionFailed;
             AuthenticationManager.OnAuthenticationSuccess -= OnAuthenticationSuccess;
+            UgsInitializer.OnInitComplete -= OnUgsInitComplete;
         }
         
         /// <summary>
@@ -72,39 +84,15 @@ namespace Poker.UI.Lobby
                 return;
             }
             
-            // UI 초기화
-            InitUI();
-            
             IsLobbyReady = true;
             LogDebug("로비 초기화 완료");
             OnLobbyInitialized?.Invoke();
         }
         
         /// <summary>
-        /// UI 초기화
-        /// </summary>
-        private void InitUI()
-        {
-            HideAllPanels();
-            
-            LogDebug("UI 초기화 완료");
-        }
-        
-        /// <summary>
-        /// 모든 패널 숨김 처리
-        /// </summary>
-        private void HideAllPanels()
-        {
-            if (createRoomPanel != null) createRoomPanel.SetActive(false);
-            if (joinRoomPanel != null) joinRoomPanel.SetActive(false);
-            if (roomListPanel != null) roomListPanel.SetActive(false);
-            if (quickMatchPanel != null) quickMatchPanel.SetActive(false);
-        }
-        
-        /// <summary>
         /// 방 생성
         /// </summary>
-        public async void CreateRoomAsync()
+        public async void CreateRoomAsync(string roomName = "", bool isPrivate = false, string password = "")
         {
             if (!IsLobbyReady)
             {
@@ -113,6 +101,10 @@ namespace Poker.UI.Lobby
             }
             
             LogDebug("방 생성 시작...");
+            if (!string.IsNullOrEmpty(roomName))
+            {
+                LogDebug($"방 이름: {roomName}, 비공개: {isPrivate}");
+            }
             
             try
             {
@@ -248,46 +240,6 @@ namespace Poker.UI.Lobby
         }
         
         /// <summary>
-        /// 방 목록 표시
-        /// </summary>
-        public void ShowRoomList()
-        {
-            LogDebug("방 목록 표시");
-            HideAllPanels();
-            if (roomListPanel != null) roomListPanel.SetActive(true);
-        }
-        
-        /// <summary>
-        /// 방 생성 패널 표시
-        /// </summary>
-        public void ShowCreateRoomPanel()
-        {
-            LogDebug("방 생성 패널 표시");
-            HideAllPanels();
-            if (createRoomPanel != null) createRoomPanel.SetActive(true);
-        }
-        
-        /// <summary>
-        /// 방 참여 패널 표시
-        /// </summary>
-        public void ShowJoinRoomPanel()
-        {
-            LogDebug("방 참여 패널 표시");
-            HideAllPanels();
-            if (joinRoomPanel != null) joinRoomPanel.SetActive(true);
-        }
-        
-        /// <summary>
-        /// 퀵 매치 패널 표시
-        /// </summary>
-        public void ShowQuickMatchPanel()
-        {
-            LogDebug("퀵 매치 패널 표시");
-            HideAllPanels();
-            if (quickMatchPanel != null) quickMatchPanel.SetActive(true);
-        }
-        
-        /// <summary>
         /// 호스트 시작 콜백
         /// </summary>
         private void OnHostStarted()
@@ -318,6 +270,15 @@ namespace Poker.UI.Lobby
         private void OnAuthenticationSuccess()
         {
             LogDebug("인증 성공 - 로비 초기화");
+            InitLobby();
+        }
+
+        /// <summary>
+        /// UGS 초기화 완료 콜백(익명 로그인 포함)
+        /// </summary>
+        private void OnUgsInitComplete()
+        {
+            LogDebug("UGS 초기화 완료 - 로비 초기화");
             InitLobby();
         }
         

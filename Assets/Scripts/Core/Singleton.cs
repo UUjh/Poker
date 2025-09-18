@@ -35,6 +35,11 @@ namespace Core
             }
         }
 
+        protected virtual void OnEnable()
+        {
+            
+        }
+
         protected virtual void Start()
         {
             
